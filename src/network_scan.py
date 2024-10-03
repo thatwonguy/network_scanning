@@ -1,14 +1,21 @@
 import scapy.all as scapy
 import networkx as nx
 import matplotlib.pyplot as plt
-from scapy.layers.l2 import ARP, Ether
 import os
+import ctypes
+
+# Function to check for administrator privileges on Windows
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
 
 # Function to perform ARP scan on the local network
 def scan_network(ip_range):
     # Create an ARP request packet
-    arp_request = ARP(pdst=ip_range)
-    broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")  # Broadcast request to all devices
+    arp_request = scapy.ARP(pdst=ip_range)
+    broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")  # Broadcast request to all devices
     arp_request_broadcast = broadcast / arp_request
     
     # Send the request and capture responses
@@ -40,6 +47,11 @@ def generate_network_diagram(devices):
 
 # Main function to perform network scan and visualize the results
 def main():
+    # Ensure running with admin privileges
+    if os.name == "nt" and not is_admin():
+        print("Please run this script as an Administrator.")
+        exit()
+
     # You need to specify the range of IP addresses to scan (replace with your network range)
     ip_range = "192.168.1.1/24"
     
@@ -63,7 +75,4 @@ def main():
     plt.show()
 
 if __name__ == "__main__":
-    # Ensure running with admin privileges
-    if os.name == "nt" and not os.geteuid() == 0:
-        print("Please run this script as an Administrator.")
     main()
