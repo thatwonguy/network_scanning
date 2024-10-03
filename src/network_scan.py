@@ -27,15 +27,46 @@ class NetworkScanner:
         try:
             interfaces = psutil.net_if_addrs()
             interface_stats = psutil.net_if_stats()
+            io_counters = psutil.net_io_counters(pernic=True)
             physical_data = []
             
             for interface_name, addresses in interfaces.items():
                 if interface_name in interface_stats:
                     stats = interface_stats[interface_name]
+                    io_stat = io_counters.get(interface_name, None)
+                    
+                    # Capture IP addresses (both IPv4 and IPv6)
+                    ipv4_addrs = [addr.address for addr in addresses if addr.family == socket.AF_INET]
+                    ipv6_addrs = [addr.address for addr in addresses if addr.family == socket.AF_INET6]
+                    mac_addrs = [addr.address for addr in addresses if addr.family == psutil.AF_LINK]
+                    
+                    # Check for optional attributes (autoneg, duplex)
+                    duplex = getattr(stats, 'duplex', 'Unknown')
+                    if duplex == psutil.NIC_DUPLEX_FULL:
+                        duplex = "Full"
+                    elif duplex == psutil.NIC_DUPLEX_HALF:
+                        duplex = "Half"
+                    else:
+                        duplex = "Unknown"
+
+                    autoneg = getattr(stats, 'autoneg', 'Unknown')
+                    mtu = getattr(stats, 'mtu', 'Unknown')
+                    
+                    # Gather all data
                     physical_data.append({
                         'interface': interface_name,
                         'is_up': stats.isup,
-                        'speed': stats.speed
+                        'speed': stats.speed,
+                        'mtu': mtu,
+                        'duplex': duplex,
+                        'auto_negotiation': autoneg,
+                        'ipv4': ipv4_addrs,
+                        'ipv6': ipv6_addrs,
+                        'mac_address': mac_addrs[0] if mac_addrs else "N/A",
+                        'packets_sent': io_stat.packets_sent if io_stat else "N/A",
+                        'packets_received': io_stat.packets_recv if io_stat else "N/A",
+                        'errors_in': io_stat.errin if io_stat else "N/A",
+                        'errors_out': io_stat.errout if io_stat else "N/A",
                     })
             return physical_data
         except Exception as e:
@@ -150,9 +181,24 @@ class NetworkScanner:
         layer_data.append({
             "title": "Layer 1: Physical Layer",
             "description": "The Physical Layer includes network interfaces and their status.",
-            "data": [f"Interface: {item['interface']}, Status: {'Up' if item['is_up'] else 'Down'}, Speed: {item['speed']} Mbps" for item in layer1_results]
+            "data": [
+                f"{i + 1}. Interface: {item['interface']}, "
+                f"Status: {'Up' if item['is_up'] else 'Down'}, "
+                f"Speed: {item['speed']} Mbps, "
+                f"MTU: {item['mtu']}, "
+                f"Duplex: {item['duplex']}, "
+                f"Auto-Negotiation: {item['auto_negotiation']}, "
+                f"IPv4: {', '.join(item['ipv4']) if item['ipv4'] else 'N/A'}, "
+                f"IPv6: {', '.join(item['ipv6']) if item['ipv6'] else 'N/A'}, "
+                f"MAC: {item['mac_address']}, "
+                f"Packets Sent: {item['packets_sent']}, "
+                f"Packets Received: {item['packets_received']}, "
+                f"Errors In: {item['errors_in']}, "
+                f"Errors Out: {item['errors_out']}"
+                for i, item in enumerate(layer1_results)
+            ]
         })
-        
+                
         # Layer 2: Data Link Layer (ARP)
         logging.info("Starting Layer 2 scan...")
         layer2_results = self.layer2_scan(f"{ip_base}1/24")
