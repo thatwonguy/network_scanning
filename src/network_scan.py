@@ -4,6 +4,10 @@ import socket
 import psutil
 import threading
 import logging
+from datetime import datetime
+
+# Get the current date and time
+current_datetime = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -133,7 +137,7 @@ def generate_pdf_report(layer_data):
         # Introduction
         pdf.set_font("Arial", size=12)
         pdf.ln(10)
-        pdf.cell(200, 10, "This report details the results of OSI Layer 1-7 network scans.", ln=True)
+        pdf.cell(200, 10, f"This report details the results of OSI Layer 1-7 network scans as of {current_datetime}.", ln=True)
         
         # Layer Data Reporting
         for layer in layer_data:
@@ -152,7 +156,7 @@ def generate_pdf_report(layer_data):
                 pdf.cell(200, 10, "No data available or scan failed.", ln=True)
         
         # Save the PDF
-        pdf.output("../reports/network_scan_report.pdf")
+        pdf.output(f"../reports/network_scan_report_{current_datetime}.pdf")
         logging.info("PDF report generated successfully.")
     except Exception as e:
         logging.error(f"Failed to generate PDF report: {e}")
