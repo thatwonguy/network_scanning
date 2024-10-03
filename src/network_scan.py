@@ -6,18 +6,26 @@ import threading
 import logging
 from datetime import datetime
 from pathlib import Path
+import networkx as nx
+import matplotlib.pyplot as plt
+from io import BytesIO
+import tempfile
+import os
+import warnings
+from graphs import generate_network_diagram
+from generate_reports import generate_pdf_report
 
-# Get the current date and time
+# Switch to non-GUI backend for matplotlib
+plt.switch_backend('Agg')
+
+# Suppress scapy warnings about MAC address broadcasting
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# Get the current date and time in the format month-day-year_hour_minute_second_AM/PM
 current_datetime = datetime.now().strftime("%m-%d-%Y_%I-%M-%S_%p")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
-
-# Define the path to the reports folder
-reports_folder = Path(__file__).parent.parent / "reports"
-
-# Create the reports folder if it does not exist
-reports_folder.mkdir(exist_ok=True)
 
 # Layer 1: Physical Layer (Interfaces and Link Speed)
 def layer1_scan():
@@ -39,7 +47,7 @@ def layer1_scan():
         logging.error(f"Layer 1 scan failed: {e}")
         return []
 
-# Layer 2: ARP for MAC addresses
+# Layer 2: ARP for MAC addresses - modified to return device names
 def layer2_scan(ip_range):
     try:
         arp_request = scapy.ARP(pdst=ip_range)
@@ -49,7 +57,14 @@ def layer2_scan(ip_range):
         
         devices = []
         for sent, received in answered_list:
-            devices.append({'ip': received.psrc, 'mac': received.hwsrc})
+            device = {'ip': received.psrc, 'mac': received.hwsrc}
+            try:
+                # Try to get the device hostname using socket
+                device_name = socket.gethostbyaddr(received.psrc)[0]
+                device['name'] = device_name
+            except socket.herror:
+                device['name'] = "Unknown"
+            devices.append(device)
         return devices
     except Exception as e:
         logging.error(f"Layer 2 scan failed: {e}")
@@ -127,45 +142,6 @@ def layer7_scan():
         logging.error(f"Layer 7 scan failed: {e}")
         return []
 
-# Generate PDF report
-def generate_pdf_report(layer_data):
-    try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        
-        # Title Page
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "Network Scan Report", ln=True, align="C")
-        
-        # Introduction
-        pdf.set_font("Arial", size=12)
-        pdf.ln(10)
-        pdf.cell(200, 10, f"This report details the results of OSI Layer 1-7 network scans as of {current_datetime}.", ln=True)
-        
-        # Layer Data Reporting
-        for layer in layer_data:
-            pdf.ln(10)
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(200, 10, f"{layer['title']}", ln=True)
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, layer['description'])
-            
-            # Add results if any
-            pdf.ln(5)
-            if layer['data'] != []:
-                for result in layer['data']:
-                    pdf.multi_cell(0, 10, f"{result}")
-            else:
-                pdf.cell(200, 10, "No data available or scan failed.", ln=True)
-        
-        # Save the PDF in the reports folder
-        report_path = reports_folder / f"network_scan_report_{current_datetime}.pdf"
-        pdf.output(str(report_path))
-        logging.info(f"PDF report generated successfully at: {report_path}")
-    except Exception as e:
-        logging.error(f"Failed to generate PDF report: {e}")
-
 # Main function to orchestrate the scans
 def main():
     ip_base = "192.168.1."
@@ -173,6 +149,7 @@ def main():
     
     # Perform scans for all layers
     layer_data = []
+    diagrams = {}
     
     # Layer 1: Physical Layer
     logging.info("Starting Layer 1 scan...")
@@ -189,8 +166,10 @@ def main():
     layer_data.append({
         "title": "Layer 2: Data Link Layer (ARP)",
         "description": "Layer 2 includes ARP scans to discover MAC addresses on the local network.",
-        "data": [f"IP: {item['ip']}, MAC: {item['mac']}" for item in layer2_results]
+        "data": [f"IP: {item['ip']}, MAC: {item['mac']}, Name: {item['name']}" for item in layer2_results]
     })
+    # Generate diagram for Layer 2
+    diagrams["Layer 2: Data Link Layer (ARP)"] = generate_network_diagram(layer2_results, "Layer 2: Data Link Layer (ARP)")
     
     # Layer 3: Network Layer (ICMP Ping)
     logging.info("Starting Layer 3 scan...")
@@ -241,9 +220,9 @@ def main():
         "data": [f"Protocol: {app['protocol']}, Description: {app['description']}" for app in layer7_results]
     })
     
-    # Generate PDF report
+    # Generate PDF report with network diagram
     logging.info("Generating PDF report...")
-    generate_pdf_report(layer_data)
+    generate_pdf_report(layer_data, current_datetime, diagrams)
 
 if __name__ == "__main__":
     main()
