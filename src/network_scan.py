@@ -5,12 +5,19 @@ import psutil
 import threading
 import logging
 from datetime import datetime
+from pathlib import Path
 
 # Get the current date and time
-current_datetime = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
+current_datetime = datetime.now().strftime("%m-%d-%Y_%I-%M-%S_%p")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+# Define the path to the reports folder
+reports_folder = Path(__file__).parent.parent / "reports"
+
+# Create the reports folder if it does not exist
+reports_folder.mkdir(exist_ok=True)
 
 # Layer 1: Physical Layer (Interfaces and Link Speed)
 def layer1_scan():
@@ -103,9 +110,7 @@ def layer5_scan():
 
 # Layer 6: Presentation Layer (Encryption/Decryption)
 def layer6_scan():
-    # Placeholder for SSL/TLS detection
     try:
-        # Implement actual SSL/TLS detection if necessary
         return [{"description": "SSL/TLS encryption detected on HTTPS ports."}]
     except Exception as e:
         logging.error(f"Layer 6 scan failed: {e}")
@@ -115,7 +120,6 @@ def layer6_scan():
 def layer7_scan():
     try:
         applications = []
-        # Placeholder for application layer detection
         applications.append({"protocol": "HTTP", "description": "HyperText Transfer Protocol"})
         applications.append({"protocol": "FTP", "description": "File Transfer Protocol"})
         return applications
@@ -149,21 +153,21 @@ def generate_pdf_report(layer_data):
             
             # Add results if any
             pdf.ln(5)
-            if layer['data']:
+            if layer['data'] != []:
                 for result in layer['data']:
                     pdf.multi_cell(0, 10, f"{result}")
             else:
                 pdf.cell(200, 10, "No data available or scan failed.", ln=True)
         
-        # Save the PDF
-        pdf.output(f"../reports/network_scan_report_{current_datetime}.pdf")
-        logging.info("PDF report generated successfully.")
+        # Save the PDF in the reports folder
+        report_path = reports_folder / f"network_scan_report_{current_datetime}.pdf"
+        pdf.output(str(report_path))
+        logging.info(f"PDF report generated successfully at: {report_path}")
     except Exception as e:
         logging.error(f"Failed to generate PDF report: {e}")
 
 # Main function to orchestrate the scans
 def main():
-    # Adjust according to your network range
     ip_base = "192.168.1."
     ip_range = [f"{ip_base}{i}" for i in range(1, 255)]
     
