@@ -1,10 +1,3 @@
-# from fpdf import FPDF
-# from pathlib import Path
-# import networkx as nx
-# from io import BytesIO
-# import tempfile
-# import os
-
 import logging
 import threading
 from datetime import datetime
@@ -221,7 +214,6 @@ class NetworkScanner:
         })
 
         return layer_data, diagrams
-
 
 # Main function to orchestrate the scans
 def main():

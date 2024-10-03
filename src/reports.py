@@ -1,16 +1,5 @@
 # Generate PDF report with NetworkX Diagram
 
-# import scapy.all as scapy
-# import socket
-# import psutil
-# import threading
-# from datetime import datetime
-# import networkx as nx
-# import matplotlib.pyplot as plt
-# from io import BytesIO
-# import tempfile
-# import warnings
-
 import logging
 from fpdf import FPDF
 from pathlib import Path
