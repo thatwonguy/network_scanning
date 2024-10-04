@@ -1,6 +1,0 @@
-scapy
-networkx
-matplotlib
-fpdf
-psutil
-

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "network-scanning"
+version = "0.1.0"
+description = "Using code to scan a network which has tons of devices potentially connected to it and manipulating this information in various ways."
+authors = ["thatwonguy"]
+readme = "README.md"
+
+packages = [
+    { include = "network_scanning", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+scapy = "^2.4.5"
+psutil = "^5.8.0"
+matplotlib = "^3.4.3"
+fpdf = "^1.7.2"
+networkx = "^2.6.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
