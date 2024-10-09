@@ -15,9 +15,10 @@ class DiagramGenerator:
 
             # Add nodes and edges to the graph based on the devices
             for device in devices:
-                G.add_node(device['ip'], label=device['name'])
+                label = device['name'] if device['name'] != 'Unknown' else device['ip']
+                G.add_node(device['ip'], label=label)  # Label node with device name or IP
 
-            # Create edges between devices if necessary (for simplicity, assume connections between devices)
+            # Create edges between devices if necessary
             for i, device1 in enumerate(devices):
                 for j, device2 in enumerate(devices):
                     if i != j:
@@ -25,13 +26,11 @@ class DiagramGenerator:
 
             # Draw the graph
             plt.figure(figsize=(10, 8))
-            pos = nx.spring_layout(G, k=0.5, seed=42)  # Adjust layout for better visualization and spacing
+            pos = nx.spring_layout(G, k=0.5, seed=42)
             labels = nx.get_node_attributes(G, 'label')
-            
+
             # Draw nodes and edges
             nx.draw(G, pos, with_labels=False, node_color='skyblue', node_size=2000, font_size=10, font_weight='bold')
-            
-            # Draw labels separately to avoid overlap with nodes
             nx.draw_networkx_labels(G, pos, labels=labels, font_size=10, verticalalignment='bottom')
 
             # Add title to the plot
@@ -41,7 +40,7 @@ class DiagramGenerator:
             temp_image_path = tempfile.mktemp(suffix=".png")
             plt.savefig(temp_image_path, format='png')
             plt.close()
-            
+
             logging.info(f"{layer_title} diagram generated successfully.")
             return temp_image_path
         except Exception as e:

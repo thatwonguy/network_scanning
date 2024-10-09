@@ -16,6 +16,8 @@ psutil = "^5.8.0"
 matplotlib = "^3.4.3"
 fpdf = "^1.7.2"
 networkx = "^2.6.3"
+smbprotocol = "^1.8.0"
+zeroconf = "^0.39.0"
 
 [build-system]
 requires = ["poetry-core"]

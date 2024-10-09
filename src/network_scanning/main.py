@@ -8,6 +8,8 @@ from graphs import DiagramGenerator
 from reports import ReportGenerator
 import matplotlib.pyplot as plt
 import warnings
+from smbprotocol.connection import Connection # For NetBIOS (Windows-based devices)
+from zeroconf import Zeroconf, ServiceBrowser, ServiceInfo  # For mDNS (Bonjour, IoT devices)
 
 # Switch to non-GUI backend for matplotlib
 plt.switch_backend('Agg')
@@ -21,6 +23,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 class NetworkScanner:
     def __init__(self):
         self.current_datetime = datetime.now().strftime("%m-%d-%Y_%I-%M-%S_%p")
+        self.zeroconf = Zeroconf()  # Initialize zeroconf when the scanner is created
         
     # Layer 1: Physical Layer (Interfaces and Link Speed)
     def layer1_scan(self):
@@ -73,7 +76,7 @@ class NetworkScanner:
             logging.error(f"Layer 1 scan failed: {e}")
             return []
 
-    # Layer 2: ARP for MAC addresses - modified to return device names
+    # Layer 2: ARP for MAC addresses with enhanced device name resolution
     def layer2_scan(self, ip_range):
         try:
             arp_request = scapy.ARP(pdst=ip_range)
@@ -84,17 +87,72 @@ class NetworkScanner:
             devices = []
             for sent, received in answered_list:
                 device = {'ip': received.psrc, 'mac': received.hwsrc}
-                try:
-                    # Try to get the device hostname using socket
-                    device_name = socket.gethostbyaddr(received.psrc)[0]
-                    device['name'] = device_name
-                except socket.herror:
-                    device['name'] = "Unknown"
+
+                # Try resolving using multiple methods
+                device_name = self.resolve_device_name(received.psrc)
+                device['name'] = device_name or "Unknown"
+
                 devices.append(device)
             return devices
         except Exception as e:
             logging.error(f"Layer 2 scan failed: {e}")
             return []
+
+    def resolve_device_name(self, ip):
+        # Attempt to resolve name via DNS first (socket.gethostbyaddr)
+        try:
+            dns_name = socket.gethostbyaddr(ip)[0]
+            logging.info(f"Resolved {ip} to {dns_name} via DNS")
+            return dns_name
+        except socket.herror:
+            logging.info(f"DNS lookup failed for IP: {ip}")
+        
+        # Attempt NetBIOS name resolution for Windows devices
+        try:
+            netbios_name = self.netbios_name_lookup(ip)
+            if netbios_name:
+                logging.info(f"Resolved {ip} to {netbios_name} via NetBIOS")
+                return netbios_name
+        except Exception as e:
+            logging.debug(f"NetBIOS lookup failed for IP {ip}: {e}")
+
+        # Attempt mDNS/Bonjour resolution
+        try:
+            mdns_name = self.mdns_lookup(ip)
+            if mdns_name:
+                logging.info(f"Resolved {ip} to {mdns_name} via mDNS")
+                return mdns_name
+        except Exception as e:
+            logging.debug(f"mDNS lookup failed for IP {ip}: {e}")
+
+        # Fallback if all methods fail
+        logging.info(f"Failed to resolve {ip}, returning 'Unknown'")
+        return None
+
+    # NetBIOS name lookup for Windows devices
+    def netbios_name_lookup(self, ip):
+        try:
+            conn = Connection(uuid.uuid4(), ip)  # Establish a connection with the device's IP
+            conn.connect(ip, 139)  # Port 139 for NetBIOS
+            return conn.negotiate()  # Try to get the NetBIOS name via negotiation
+        except Exception as e:
+            logging.debug(f"NetBIOS resolution failed for IP {ip}: {e}")
+        return None
+
+    # mDNS lookup using Zeroconf
+    def mdns_lookup(self, ip):
+        try:
+            info = self.zeroconf.get_service_info("_http._tcp.local.", f"{ip}.local.")
+            if info:
+                return info.name
+        except Exception as e:
+            logging.debug(f"mDNS lookup failed for IP {ip}: {e}")
+        return None
+
+    def __del__(self):
+        if hasattr(self, 'zeroconf'):  # Check if zeroconf is initialized
+            self.zeroconf.close()  # Close zeroconf instance safely
+
 
     # Layer 3: ICMP (Ping) for IP addresses
     def layer3_scan(self, ip_range):
@@ -203,6 +261,7 @@ class NetworkScanner:
         # Layer 2: Data Link Layer (ARP)
         logging.info("Starting Layer 2 scan...")
         layer2_results = self.layer2_scan(f"{ip_base}1/24")
+        logging.debug(f"Layer 2 devices: {layer2_results}")
         # Layer 2: This shows devices connected to the same local network as this machine.
         layer_data.append({
             "title": "Layer 2: Data Link Layer (ARP)",
