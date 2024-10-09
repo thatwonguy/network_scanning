@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import warnings
 from smbprotocol.connection import Connection # For NetBIOS (Windows-based devices)
 from zeroconf import Zeroconf, ServiceBrowser, ServiceInfo  # For mDNS (Bonjour, IoT devices)
+from mac_vendor_lookup import MacLookup  # Add back MacLookup
 
 # Switch to non-GUI backend for matplotlib
 plt.switch_backend('Agg')
@@ -24,6 +25,8 @@ class NetworkScanner:
     def __init__(self):
         self.current_datetime = datetime.now().strftime("%m-%d-%Y_%I-%M-%S_%p")
         self.zeroconf = Zeroconf()  # Initialize zeroconf when the scanner is created
+        self.mac_lookup = MacLookup()  # Initialize the MacLookup instance
+        self.mac_lookup.update_vendors()  # Update the vendor list for MAC addresses
         
     # Layer 1: Physical Layer (Interfaces and Link Speed)
     def layer1_scan(self):
@@ -88,7 +91,18 @@ class NetworkScanner:
             for sent, received in answered_list:
                 device = {'ip': received.psrc, 'mac': received.hwsrc}
 
-                # Try resolving using multiple methods
+                # Device manufacturer lookup
+                try:
+                    device_manufacturer = self.mac_lookup.lookup(device['mac'])
+                    device['device_manufacturer'] = device_manufacturer
+                except KeyError:
+                    device['device_manufacturer'] = "Unknown Manufacturer"
+
+                # Latency calculation (ping)
+                latency = self.get_ping_latency(device['ip'])
+                device['latency_ms'] = latency if latency else "No response"
+
+                # Resolve device name
                 device_name = self.resolve_device_name(received.psrc)
                 device['name'] = device_name or "Unknown"
 
@@ -97,6 +111,17 @@ class NetworkScanner:
         except Exception as e:
             logging.error(f"Layer 2 scan failed: {e}")
             return []
+
+    def get_ping_latency(self, ip):
+        try:
+            packet = scapy.IP(dst=ip) / scapy.ICMP()
+            response = scapy.sr1(packet, timeout=1, verbose=False)
+            if response:
+                latency = response.time - packet.sent_time  # Calculate latency in seconds
+                return latency * 1000  # Convert to milliseconds
+        except Exception as e:
+            logging.error(f"Error pinging {ip}: {e}")
+        return None
 
     def resolve_device_name(self, ip):
         # Attempt to resolve name via DNS first (socket.gethostbyaddr)
@@ -265,9 +290,13 @@ class NetworkScanner:
         # Layer 2: This shows devices connected to the same local network as this machine.
         layer_data.append({
             "title": "Layer 2: Data Link Layer (ARP)",
-            "description": "This layer shows other devices on the same network as this computer, including their IP and MAC addresses.",
-            "data": [f"IP: {item['ip']}, MAC: {item['mac']}, Name: {item['name']}" for item in layer2_results]
+            "description": "This layer shows other devices on the same network as this computer, including their IP, MAC addresses, device manufacturer, latency, and device type.",
+            "data": [
+                f"IP: {item['ip']}, MAC: {item['mac']}, Name: {item['name']}, Device Manufacturer: {item.get('device_manufacturer', 'Unknown')}"
+                for item in layer2_results
+            ]
         })
+        
         # Generate diagram for Layer 2 showing the devices on the network
         diagrams["Layer 2: Data Link Layer (ARP)"] = DiagramGenerator.generate_network_diagram(layer2_results, "Layer 2: Data Link Layer (ARP)")
 
