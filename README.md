@@ -1,3 +1,5 @@
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 # Network Scan and Analysis Tool
 
 This Python script performs a comprehensive network scan across OSI Layers 1 to 7, providing insights into various network layers, interfaces, services, and potential vulnerabilities. The generated report includes critical details regarding the physical network interfaces, IP/MAC addresses, open ports, network sessions, and protocols in use.
